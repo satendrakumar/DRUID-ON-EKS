@@ -1,4 +1,5 @@
 apiVersion: "druid.apache.org/v1alpha1"
+### this config deployed on AWS 6 instance of r6a.2xlarge
 kind: "Druid"
 metadata:
   name: cluster

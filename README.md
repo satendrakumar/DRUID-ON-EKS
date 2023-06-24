@@ -1,5 +1,4 @@
-#### Please create node group with 5 * m5.large nodes on EKS than start these steps.
-
+#### Please create [node group](https://satendrakumar06.wordpress.com/2023/06/24/druid-cluster-setup-on-aws-eks/) with 5 * m5.large nodes on EKS than start these steps.
 #### create namespace for druid cluster:
      $ kubectl create namespace druid
 #### Install the zookeeper:
@@ -14,3 +13,5 @@
 
 ##### Install druid cluster:
       $ kubectl apply -f druid-cluster/dev-cluster.yaml -n druid
+
+     

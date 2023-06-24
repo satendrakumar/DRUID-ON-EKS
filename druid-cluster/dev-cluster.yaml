@@ -6,7 +6,7 @@ spec:
   image: apache/druid:25.0.0
   startScript: /druid.sh
   podLabels:
-    environment: PRODUCTION
+    environment: DEV
     NAME: DRUID
   podAnnotations:
     NAME: DRUID
