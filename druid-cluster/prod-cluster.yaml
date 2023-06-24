@@ -95,8 +95,8 @@ spec:
     druid.zk.service.compress=false
     # Metadata Store
     druid.metadata.storage.type=postgresql
-    druid.metadata.storage.connector.connectURI=jdbc:postgresql://xxxxxxxxxxxxxxxus-east-1.rds.amazonaws.com:5432/druid_meta_db
-    druid.metadata.storage.connector.host=xxxxxxxxxxxxxxx-us-east-1.rds.amazonaws.com
+    druid.metadata.storage.connector.connectURI=jdbc:postgresql://xxxxxxxxxxxxxxxxxxxxxxxxxx.amazonaws.com:5432/druid_meta_db
+    druid.metadata.storage.connector.host=xxxxxxxxxxxxxxxxxxxxxxxxxx.amazonaws.com
     druid.metadata.storage.connector.port=5432
     druid.metadata.storage.connector.createTables=true
     druid.metadata.storage.connector.user=postgres
