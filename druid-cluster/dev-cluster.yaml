@@ -1,0 +1,352 @@
+apiVersion: "druid.apache.org/v1alpha1"
+kind: "Druid"
+metadata:
+  name: cluster
+spec:
+  image: apache/druid:25.0.0
+  startScript: /druid.sh
+  podLabels:
+    environment: PRODUCTION
+    NAME: DRUID
+  podAnnotations:
+    NAME: DRUID
+  readinessProbe:
+    httpGet:
+      path: /status/health
+      port: 8088
+  securityContext:
+    fsGroup: 1000
+    runAsUser: 1000
+    runAsGroup: 1000
+  services:
+    - spec:
+        type: ClusterIP
+        clusterIP: None
+  tolerations:
+    - key: "DRUID"
+      operator: "Exists"
+      effect: "NoExecute"
+  nodeSelector:
+    TYPE: "DRUID"
+  commonConfigMountPath: "/opt/druid/conf/druid/cluster/_common"
+  jvm.options: |-
+    -server
+    -Duser.timezone=UTC
+    -Dfile.encoding=UTF-8
+    -Djava.util.logging.manager=org.apache.logging.log4j.jul.LogManager
+    -Djava.io.tmpdir=/druid/data
+  log4j.config: |-
+    <?xml version="1.0" encoding="UTF-8" ?>
+    <Configuration status="INFO">
+      <Properties>
+        <Property name="druid.log.path" value="log" />
+      </Properties>
+      <Appenders>
+        <Console name="Console" target="SYSTEM_OUT">
+          <PatternLayout pattern="%d{ISO8601} %p [%t] %c - %m%n"/>
+        </Console>
+        <!-- Rolling Files-->
+        <RollingRandomAccessFile name="FileAppender" fileName="${env:DRUID_LOG_DIR}/${env:DRUID_NODE_TYPE}.log" filePattern="${env:DRUID_LOG_DIR}/${env:DRUID_NODE_TYPE}.%d{yyyyMMdd}.log">
+          <PatternLayout pattern="%d{ISO8601} %p [%t] %c - %m%n"/>
+          <Policies>
+          <TimeBasedTriggeringPolicy interval="1" modulate="true"/>
+          </Policies>
+          <DefaultRolloverStrategy>
+          <Delete basePath="${env:DRUID_LOG_DIR}/" maxDepth="1">
+          <IfFileName glob="*.log" />
+          <IfLastModified age="30d" />
+          </Delete>
+          </DefaultRolloverStrategy>
+        </RollingRandomAccessFile>
+      </Appenders>
+      <Loggers>
+        <Root level="info">
+          <AppenderRef ref="FileAppender"/>
+        </Root>
+        <!-- Set level="debug" to see stack traces for query errors -->
+        <Logger name="org.apache.druid.server.QueryResource" level="info" additivity="false">
+          <Appender-ref ref="FileAppender"/>
+        </Logger>
+        <Logger name="org.apache.druid.server.QueryLifecycle" level="info" additivity="false">
+          <Appender-ref ref="FileAppender"/>
+        </Logger>
+        <Logger name="org.apache.druid.server.coordinator" level="info" additivity="false">
+         <Appender-ref ref="FileAppender"/>
+        </Logger>
+        <Logger name="org.apache.druid.segment" level="info" additivity="false">
+          <Appender-ref ref="FileAppender"/>
+        </Logger>
+        <Logger name="org.apache.druid.initialization" level="info" additivity="false">
+          <Appender-ref ref="FileAppender"/>
+        </Logger>
+        <Logger name="org.skife.config" level="info" additivity="false">
+          <Appender-ref ref="FileAppender"/>
+        </Logger>
+        <Logger name="com.sun.jersey.guice" level="info" additivity="false">
+          <Appender-ref ref="FileAppender"/>
+        </Logger>
+      </Loggers>
+    </Configuration>
+  common.runtime.properties: |
+    # Zookeeper
+    druid.zk.service.host=zookeeper.druid
+    druid.zk.paths.base=/druid
+    druid.zk.service.compress=false
+    # Metadata Store
+    druid.metadata.storage.type=postgresql
+    druid.metadata.storage.connector.connectURI=jdbc:postgresql://xxxxxxxxus-east-1.rds.amazonaws.com:5432/druid_meta_db
+    druid.metadata.storage.connector.host=xxxxxxxxus-east-1.rds.amazonaws.com
+    druid.metadata.storage.connector.port=5432
+    druid.metadata.storage.connector.createTables=true
+    druid.metadata.storage.connector.user=postgres
+    druid.metadata.storage.connector.password=******************************
+    # Deep Storage
+    druid.storage.type=s3
+    druid.storage.bucket=s3_bucket_name
+    druid.storage.baseKey=data
+    druid.storage.archiveBaseKey=archive
+    druid.storage.disableAcl=true
+    druid.s3.accessKey=*********************
+    druid.s3.secretKey=************************
+    #
+    # Extensions
+    #
+    druid.extensions.loadList=["druid-kafka-indexing-service", "druid-s3-extensions", "postgresql-metadata-storage"]
+    #
+    # Service discovery
+    #
+    druid.selectors.indexing.serviceName=druid/overlord
+    druid.selectors.coordinator.serviceName=druid/coordinator
+    druid.indexer.logs.type=file
+    druid.indexer.logs.directory=/druid/data/indexing-logs
+    druid.lookup.enableLookupSyncOnStartup=false
+  volumeMounts:
+    - mountPath: /druid/data
+      name: data-volume
+    - mountPath: /druid/deepstorage
+      name: deepstorage-volume
+  volumes:
+    - name: data-volume
+      emptyDir:
+        sizeLimit: 126Gi
+    - name: deepstorage-volume
+      hostPath:
+        path: /tmp/druid/deepstorage
+        type: DirectoryOrCreate
+  env:
+    - name: POD_NAME
+      valueFrom:
+        fieldRef:
+          fieldPath: metadata.name
+    - name: POD_NAMESPACE
+      valueFrom:
+        fieldRef:
+          fieldPath: metadata.namespace
+
+  nodes:
+    brokers:
+      nodeType: "broker"
+      druid.port: 8088
+      replicas: 2
+      tolerations:
+        - key: "DRUID"
+          operator: "Exists"
+          effect: "NoExecute"
+      nodeSelector:
+        TYPE: "DRUID"
+      env:
+        - name: DRUID_LOG_DIR
+          value: /druid/data/log
+        - name:  DRUID_NODE_TYPE
+          value: broker
+        - name: DRUID_XMS
+          value: 2g
+        - name: DRUID_XMX
+          value: 2g
+        - name: DRUID_MAXDIRECTMEMORYSIZE
+          value: 2g
+      resources:
+        limits:
+          cpu: 500m
+          memory: 2Gi
+        requests:
+          cpu: 500m
+          memory: 2Gi
+      nodeConfigMountPath: "/opt/druid/conf/druid/cluster/query/broker"
+      runtime.properties: |
+        druid.service=druid/broker
+        druid.broker.http.numConnections=10
+        druid.server.http.numThreads=20
+        druid.processing.buffer.sizeBytes=56843545
+        druid.processing.numMergeBuffers=2
+        druid.processing.numThreads=10
+        druid.sql.enable=true
+
+    coordinators:
+      nodeType: "coordinator"
+      druid.port: 8088
+      nodeConfigMountPath: "/opt/druid/conf/druid/cluster/master/coordinator-overlord"
+      replicas: 2
+      tolerations:
+        - key: "DRUID"
+          operator: "Exists"
+          effect: "NoExecute"
+      nodeSelector:
+        TYPE: "DRUID"
+      resources:
+        limits:
+          cpu: 500m
+          memory: 1Gi
+        requests:
+          cpu: 500m
+          memory: 1Gi
+      env:
+        - name: DRUID_LOG_DIR
+          value: /druid/data/log
+        - name:  DRUID_NODE_TYPE
+          value: coordinator
+        - name: DRUID_XMS
+          value: 1g
+        - name: DRUID_XMX
+          value: 1g
+        - name: DRUID_MAXDIRECTMEMORYSIZE
+          value: 1g
+
+      runtime.properties: |
+        druid.service=druid/coordinator
+        druid.coordinator.asOverlord.enabled=true
+        druid.coordinator.asOverlord.overlordService=druid/overlord
+        druid.indexer.runner.type=httpRemote
+        druid.indexer.queue.startDelay=PT5S
+        druid.coordinator.balancer.strategy=cachingCost
+        druid.serverview.type=http
+        druid.indexer.storage.type=metadata
+        druid.coordinator.startDelay=PT10S
+        druid.coordinator.period=PT5S
+        druid.server.http.numThreads=50
+
+    historicals:
+      nodeType: historical
+      druid.port: 8088
+      nodeConfigMountPath: "/opt/druid/conf/druid/cluster/data/historical"
+      replicas: 3
+      tolerations:
+        - key: "DRUID"
+          operator: "Exists"
+          effect: "NoExecute"
+      nodeSelector:
+        TYPE: "DRUID"
+      resources:
+        limits:
+          cpu: 1
+          memory: 2Gi
+        requests:
+          cpu: 1
+          memory: 2Gi
+      env:
+        - name: DRUID_LOG_DIR
+          value: /druid/data/log
+        - name: DRUID_NODE_TYPE
+          value: historical
+        - name: DRUID_XMS
+          value: 2g
+        - name: DRUID_XMX
+          value: 2g
+        - name: DRUID_MAXDIRECTMEMORYSIZE
+          value: 2g
+      runtime.properties: |
+        druid.service=druid/historical
+        druid.server.http.numThreads=10
+        druid.processing.buffer.sizeBytes=50MiB
+        druid.processing.numMergeBuffers=2
+        druid.processing.numThreads=15
+        druid.cache.sizeInBytes=25MiB
+        # Segment storage
+        druid.segmentCache.locations=[{\"path\":\"/druid/data/segments\",\"maxSize\":157374182400}]
+        druid.server.maxSize=157374182400
+
+    middlemanagers:
+      druid.port: 8088
+      nodeType: middleManager
+      nodeConfigMountPath: "/opt/druid/conf/druid/cluster/data/middleManager"
+      replicas: 3
+      tolerations:
+        - key: "DRUID"
+          operator: "Exists"
+          effect: "NoExecute"
+      nodeSelector:
+        TYPE: "DRUID"
+      resources:
+        limits:
+          cpu: 500m
+          memory: 2Gi
+        requests:
+          cpu: 500m
+          memory: 2Gi
+      env:
+        - name: DRUID_LOG_DIR
+          value: /druid/data/log
+        - name: DRUID_NODE_TYPE
+          value: middleManager
+        - name: DRUID_XMX
+          value: 2g
+        - name: DRUID_XMS
+          value: 2g
+      runtime.properties: |
+        druid.service=druid/middleManager
+        druid.worker.capacity=2
+        druid.indexer.runner.javaOpts=-server -Xms1g -Xmx1g -XX:MaxDirectMemorySize=1g -Duser.timezone=UTC -Dfile.encoding=UTF-8 -XX:+ExitOnOutOfMemoryError -Djava.util.logging.manager=org.apache.logging.log4j.jul.LogManager
+        druid.indexer.task.baseTaskDir=var/druid/task
+        # HTTP server threads
+        druid.server.http.numThreads=50
+        # Processing threads and buffers on Peons
+        druid.indexer.fork.property.druid.processing.numMergeBuffers=1
+        druid.indexer.fork.property.druid.processing.buffer.sizeBytes=32000000
+        druid.indexer.fork.property.druid.processing.numThreads=2
+
+    routers:
+      nodeType: "router"
+      druid.port: 8088
+      nodeConfigMountPath: "/opt/druid/conf/druid/cluster/query/router"
+      replicas: 2
+      tolerations:
+        - key: "DRUID"
+          operator: "Exists"
+          effect: "NoExecute"
+      nodeSelector:
+        TYPE: "DRUID"
+      env:
+        - name: DRUID_LOG_DIR
+          value: /druid/data/log
+        - name: DRUID_NODE_TYPE
+          value: router
+        - name: DRUID_XMX
+          value: 1g
+        - name: DRUID_XMS
+          value: 1g
+      resources:
+        limits:
+          cpu: 250m
+          memory: 1Gi
+        requests:
+          cpu: 250m
+          memory: 1Gi
+      runtime.properties: |
+        druid.service=druid/router
+        druid.router.http.numConnections=500
+        druid.router.http.readTimeout=PT5M
+        druid.router.http.numMaxThreads=1000
+        druid.server.http.numThreads=500
+        druid.processing.buffer.sizeBytes=500MiB
+        druid.processing.numMergeBuffers=6
+        # Service discovery
+        druid.router.defaultBrokerServiceName=druid/broker
+        druid.router.coordinatorServiceName=druid/coordinator
+        # Management proxy to coordinator / overlord: required for unified web console.
+        druid.router.managementProxy.enabled=true
+      services:
+        -  spec:
+            ports:
+              - name: router-port
+                port: 8088
+            type: ClusterIP

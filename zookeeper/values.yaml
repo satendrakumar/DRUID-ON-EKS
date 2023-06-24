@@ -1,0 +1,12 @@
+global:
+  storageClass: "gp2"
+fullnameOverride: "zookeeper"
+replicaCount: 3
+tolerations:
+  - key: "DRUID"
+    operator: "Exists"
+    effect: "NoExecute"
+nodeSelector:
+  TYPE: "DRUID"
+persistence:
+  size: 8Gi
