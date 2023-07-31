@@ -1,5 +1,4 @@
 apiVersion: "druid.apache.org/v1alpha1"
-### this config deployed on AWS 6 instance of r6a.2xlarge
 kind: "Druid"
 metadata:
   name: cluster
@@ -96,20 +95,20 @@ spec:
     druid.zk.service.compress=false
     # Metadata Store
     druid.metadata.storage.type=postgresql
-    druid.metadata.storage.connector.connectURI=jdbc:postgresql://xxxxxxxxxxxxxxxxxxxxxxxxxx.amazonaws.com:5432/druid_meta_db
-    druid.metadata.storage.connector.host=xxxxxxxxxxxxxxxxxxxxxxxxxx.amazonaws.com
+    druid.metadata.storage.connector.connectURI=jdbc:postgresql://xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx.us-east-1.rds.amazonaws.com:5432/druid_meta_db
+    druid.metadata.storage.connector.host=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx.us-east-1.rds.amazonaws.com
     druid.metadata.storage.connector.port=5432
     druid.metadata.storage.connector.createTables=true
     druid.metadata.storage.connector.user=postgres
-    druid.metadata.storage.connector.password=**************************
+    druid.metadata.storage.connector.password=*****************
     # Deep Storage
     druid.storage.type=s3
     druid.storage.bucket=bucket_name
     druid.storage.baseKey=data
     druid.storage.archiveBaseKey=archive
     druid.storage.disableAcl=true
-    druid.s3.accessKey=*******************
-    druid.s3.secretKey=**********************************
+    druid.s3.accessKey=****************************
+    druid.s3.secretKey=****************************
     #
     # Extensions
     #
@@ -130,7 +129,7 @@ spec:
   volumes:
     - name: data-volume
       emptyDir:
-        sizeLimit: 512Gi
+        sizeLimit: 1800Gi
     - name: deepstorage-volume
       hostPath:
         path: /tmp/druid/deepstorage
@@ -149,7 +148,7 @@ spec:
     brokers:
       nodeType: "broker"
       druid.port: 8088
-      replicas: 3
+      replicas: 2
       tolerations:
         - key: "DRUID"
           operator: "Exists"
@@ -162,23 +161,24 @@ spec:
         - name:  DRUID_NODE_TYPE
           value: broker
         - name: DRUID_XMS
-          value: 8g
+          value: 12g
         - name: DRUID_XMX
-          value: 8g
+          value: 12g
         - name: DRUID_MAXDIRECTMEMORYSIZE
           value: 12g
       resources:
         limits:
-          cpu: 2
-          memory: 20Gi
+          cpu: 6
+          memory: 24Gi
         requests:
-          cpu: 2
-          memory: 20Gi
+          cpu: 6
+          memory: 24Gi
       nodeConfigMountPath: "/opt/druid/conf/druid/cluster/query/broker"
       runtime.properties: |
         druid.service=druid/broker
         druid.broker.http.numConnections=100
         druid.server.http.numThreads=200
+        druid.server.http.maxSubqueryRows=8000000
         druid.processing.buffer.sizeBytes=568435456 
         druid.processing.numMergeBuffers=6
         druid.processing.numThreads=15
@@ -240,38 +240,42 @@ spec:
         TYPE: "DRUID"
       resources:
         limits:
-          cpu: 2
-          memory: 20Gi
+          cpu: 6
+          memory: 40Gi
         requests:
-          cpu: 2
-          memory: 20Gi
+          cpu: 6
+          memory: 40Gi
       env:
         - name: DRUID_LOG_DIR
           value: /druid/data/log
         - name: DRUID_NODE_TYPE
           value: historical
         - name: DRUID_XMS
-          value: 8g
+          value: 20g
         - name: DRUID_XMX
-          value: 8g
+          value: 20g
         - name: DRUID_MAXDIRECTMEMORYSIZE
-          value: 12g
+          value: 20g
       runtime.properties: |
         druid.service=druid/historical
         druid.server.http.numThreads=60
         druid.processing.buffer.sizeBytes=500MiB
         druid.processing.numMergeBuffers=6
         druid.processing.numThreads=15
-        druid.cache.sizeInBytes=256MiB
-        # Segment storage
-        druid.segmentCache.locations=[{\"path\":\"/druid/data/segments\",\"maxSize\":457374182400}]
-        druid.server.maxSize=457374182400
+        druid.cache.sizeInBytes=500MiB
+        # Segment storage 1600000000000 => 1600 GB
+        druid.segmentCache.locations=[{\"path\":\"/druid/data/segments\",\"maxSize\":1600000000000}]
+        druid.server.maxSize=1600000000000
+        
+        druid.query.groupBy.maxMergingDictionarySize=2000000000
+        druid.query.groupBy.maxOnDiskStorage=25737418240
+
 
     middlemanagers:
       druid.port: 8088
       nodeType: middleManager
       nodeConfigMountPath: "/opt/druid/conf/druid/cluster/data/middleManager"
-      replicas: 5
+      replicas: 3
       tolerations:
         - key: "DRUID"
           operator: "Exists"
@@ -291,9 +295,9 @@ spec:
         - name: DRUID_NODE_TYPE
           value: middleManager
         - name: DRUID_XMX
-          value: 4g
+          value: 1g
         - name: DRUID_XMS
-          value: 4g
+          value: 1g
       runtime.properties: |
         druid.service=druid/middleManager
         druid.worker.capacity=4
@@ -303,14 +307,14 @@ spec:
         druid.server.http.numThreads=500
         # Processing threads and buffers on Peons
         druid.indexer.fork.property.druid.processing.numMergeBuffers=2
-        druid.indexer.fork.property.druid.processing.buffer.sizeBytes=32000000
+        druid.indexer.fork.property.druid.processing.buffer.sizeBytes=320000000
         druid.indexer.fork.property.druid.processing.numThreads=2
 
     routers:
       nodeType: "router"
       druid.port: 8088
       nodeConfigMountPath: "/opt/druid/conf/druid/cluster/query/router"
-      replicas: 3
+      replicas: 2
       tolerations:
         - key: "DRUID"
           operator: "Exists"
@@ -323,24 +327,22 @@ spec:
         - name: DRUID_NODE_TYPE
           value: router
         - name: DRUID_XMX
-          value: 4g
+          value: 2g
         - name: DRUID_XMS
-          value: 4g
+          value: 2g
       resources:
         limits:
           cpu: 1
-          memory: 4Gi
+          memory: 2Gi
         requests:
           cpu: 1
-          memory: 4Gi
+          memory: 2Gi
       runtime.properties: |
         druid.service=druid/router
-        druid.router.http.numConnections=500
+        druid.router.http.numConnections=200
         druid.router.http.readTimeout=PT5M
-        druid.router.http.numMaxThreads=1000
-        druid.server.http.numThreads=500
-        druid.processing.buffer.sizeBytes=500MiB
-        druid.processing.numMergeBuffers=6
+        druid.router.http.numMaxThreads=500
+        druid.server.http.numThreads=200
         # Service discovery
         druid.router.defaultBrokerServiceName=druid/broker
         druid.router.coordinatorServiceName=druid/coordinator
@@ -348,7 +350,7 @@ spec:
         druid.router.managementProxy.enabled=true
       services:
         -  spec:
-            ports:
-              - name: router-port
-                port: 8088
-            type: ClusterIP
+             ports:
+               - name: router-port
+                 port: 8088
+             type: ClusterIP
